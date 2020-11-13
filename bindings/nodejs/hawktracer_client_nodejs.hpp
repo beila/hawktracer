@@ -59,6 +59,9 @@ private:
         // ?         X ?            => started   X ?
         void start(std::unique_ptr<ClientContext> cc)
         {
+            if (!cc->get_reader_connected()) {
+                return;
+            }
             _client_context = std::move(cc);
         }
         // ?         X ?            => stopped   X no_callback

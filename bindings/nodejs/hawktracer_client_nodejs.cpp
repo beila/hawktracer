@@ -33,19 +33,19 @@ Client::Client(const CallbackInfo& info)
 
 Value Client::start(const CallbackInfo& info)
 {
-    _state.start(
-        ClientContext::create(
-            _source,
-            _maps,
-            [this]()
-            {
-                _notify_new_event();
-            }));
+    std::unique_ptr<ClientContext> context = ClientContext::create(
+        _source,
+        _maps,
+        [this]()
+        {
+            _notify_new_event();
+    });
+    if (!context) {	
+        throw Error::New(info.Env(), "Failed to create context");	
+    }
+    _state.start(std::move(context));
     if (_state.is_started()) {
         Ref();
-    }
-    else {
-        throw Error::New(info.Env(), "Failed to start");
     }
     return Boolean::New(info.Env(), _state.is_started());
 }

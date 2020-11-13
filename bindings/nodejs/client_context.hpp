@@ -32,7 +32,7 @@ public:
     create(const std::string& source, const std::string& map_files, EventCallback event_callback);
 
     ~ClientContext();
-
+    bool get_reader_connected();
     std::vector<LabeledEvent> take_events();
 
 private:

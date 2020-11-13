@@ -1,8 +1,11 @@
 const NativeClient = require('bindings')('hawk_tracer_client').HawkTracerClient;   // loads build/Release/hawk_tracer_client.node
 
+const ONE_SECOND = 1e3;
+
 export interface HawkTracerClientOptions {
     source: string;
     map_files?: string;
+    max_retries?: number;
 }
 
 // HT_Event
@@ -44,9 +47,13 @@ export function isCallstackEvent(event: CallstackEvent): event is CallstackEvent
     return e.duration !== undefined && e.thread_id !== undefined;
 }
 
+const MAX_RETRIES = 100;
+
 export class HawkTracerClient {
     private _client: any;
     private _klass_names: (string | undefined)[] = [];
+    private _timeout?: NodeJS.Timeout;
+    private _max_retries: number = MAX_RETRIES;
 
     constructor(option: HawkTracerClientOptions | string) {
         if (typeof option === "string") {
@@ -54,14 +61,35 @@ export class HawkTracerClient {
         }
         else {
             this._client = new NativeClient(option.source, option.map_files);
+            this._max_retries = option.max_retries || MAX_RETRIES;
         }
     }
 
-    public start(): boolean {
-        return this._client.start();
+    public start(): Promise<boolean> {
+        const tryConnect = (resolve: any, reject: any, retries: number) => {
+            if (this._client.start()) {
+                return resolve(this);
+            }
+            if (retries <= 1) {
+                return reject(new Error('max_retries exceeded'));
+            }
+            if (this._timeout) {
+                clearTimeout(this._timeout);
+            }        
+            this._timeout = setTimeout(() => {
+                tryConnect(resolve, reject, retries - 1);
+            }, ONE_SECOND);
+        }
+
+        return new Promise(( resolve, reject ) => {
+            tryConnect(resolve, reject, this._max_retries);
+        });
     }
 
     public stop(): void {
+        if (this._timeout) {
+            clearTimeout(this._timeout);
+        }
         this._client.stop();
     }
 
